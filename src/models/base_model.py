@@ -1,0 +1,212 @@
+import torch
+from pytorch_lightning import LightningModule
+from torch import Tensor
+from torch.optim import Adam
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
+from torchmetrics import (
+    AUROC,
+    Accuracy,
+    ExplainedVariance,
+    MatthewsCorrCoef,
+    MeanAbsoluteError,
+    MeanSquaredError,
+    MetricCollection,
+)
+
+from src.data.data import TwoGraphData
+from src.lr_schedules.LWCA import LinearWarmupCosineAnnealingLR
+from src.lr_schedules.LWCAWR import LinearWarmupCosineAnnealingWarmRestartsLR
+
+
+class BaseModel(LightningModule):
+    """Base model, defines a lot of helper functions."""
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.save_hyperparameters()
+        self.batch_size = kwargs["datamodule"]["batch_size"]
+        return kwargs["model"]
+
+    def _set_class_metrics(self, num_classes: int = 2, prefix: str = ""):
+        """Initialize classification metrics for this sample"""
+        if num_classes == 2:
+            metrics = MetricCollection(
+                [
+                    Accuracy(task="binary"),
+                    AUROC(task="binary"),
+                    MatthewsCorrCoef(task="binary"),
+                    # DyBiAUROC(),
+                    # DyBiMCC(),
+                    # Decider(),
+                    # DistOverlap(),
+                ]
+            )
+        else:
+            metrics = MetricCollection(
+                [
+                    Accuracy(task="multiclass"),
+                    AUROC(task="multiclass"),
+                    MatthewsCorrCoef(num_classes=num_classes),
+                    # DistOverlap(),
+                ]
+            )
+        return (
+            metrics.clone(prefix=prefix + "train_"),
+            metrics.clone(prefix=prefix + "val_"),
+            metrics.clone(prefix=prefix + "test_"),
+        )
+
+    def _set_reg_metrics(self):
+        """Initialize regression metrics for this model"""
+        metrics = MetricCollection([MeanAbsoluteError(), MeanSquaredError(), ExplainedVariance()])
+        self.train_metrics = metrics.clone(prefix="train_")
+        self.val_metrics = metrics.clone(prefix="val_")
+        self.test_metrics = metrics.clone(prefix="test_")
+
+    def _determine_feat_method(
+        self,
+        feat_method: str,
+        drug_hidden_dim: int = None,
+        prot_hidden_dim: int = None,
+        **kwargs,
+    ):
+        """Which method to use for concatenating drug and protein representations."""
+        if feat_method == "concat":
+            self.merge_features = self._concat
+            self.embed_dim = drug_hidden_dim + prot_hidden_dim
+        elif feat_method == "element_l2":
+            assert drug_hidden_dim == prot_hidden_dim
+            self.merge_features = self._element_l2
+            self.embed_dim = drug_hidden_dim
+        elif feat_method == "element_l1":
+            assert drug_hidden_dim == prot_hidden_dim
+            self.merge_features = self._element_l1
+            self.embed_dim = drug_hidden_dim
+        elif feat_method == "mult":
+            assert drug_hidden_dim == prot_hidden_dim
+            self.merge_features = self._mult
+            self.embed_dim = drug_hidden_dim
+        else:
+            raise ValueError("unsupported feature method")
+
+    def _concat(self, drug_embed: Tensor, prot_embed: Tensor) -> Tensor:
+        """Concatenation."""
+        return torch.cat((drug_embed, prot_embed), dim=1)
+
+    def _element_l2(self, drug_embed: Tensor, prot_embed: Tensor) -> Tensor:
+        """L2 distance."""
+        return torch.sqrt(((drug_embed - prot_embed) ** 2) + 1e-6).float()
+
+    def _element_l1(self, drug_embed: Tensor, prot_embed: Tensor) -> Tensor:
+        """L1 distance."""
+        return (drug_embed - prot_embed).abs()
+
+    def _mult(self, drug_embed: Tensor, prot_embed: Tensor) -> Tensor:
+        """Multiplication."""
+        return drug_embed * prot_embed
+
+    def training_step(self, data: TwoGraphData, data_idx: int) -> dict:
+        """What to do during training step."""
+        ss = self.shared_step(data)
+        self.train_metrics.update(ss["preds"], ss["labels"])
+        self.log("train_loss", ss["loss"], batch_size=self.batch_size)
+        return ss
+
+    def validation_step(self, data: TwoGraphData, data_idx: int) -> dict:
+        """What to do during validation step. Also logs the values for various callbacks."""
+        ss = self.shared_step(data)
+        self.val_metrics.update(ss["preds"], ss["labels"])
+        self.log("val_loss", ss["loss"], batch_size=self.batch_size)
+        return ss
+
+    def test_step(self, data: TwoGraphData, data_idx: int) -> dict:
+        """What to do during test step. Also logs the values for various callbacks."""
+        ss = self.shared_step(data)
+        self.test_metrics.update(ss["preds"], ss["labels"])
+        self.log("test_loss", ss["loss"], batch_size=self.batch_size)
+        return ss
+
+    def log_all(self, metrics: dict):
+        """Log all metrics."""
+        for k, v in metrics.items():
+            self.log(k, v)
+
+    def training_epoch_end(self, outputs: dict):
+        """What to do at the end of a training epoch. Logs everything."""
+        metrics = self.train_metrics.compute()
+        self.train_metrics.reset()
+        self.log_all(metrics)
+
+    def validation_epoch_end(self, outputs: dict):
+        """What to do at the end of a validation epoch. Logs everything."""
+        metrics = self.val_metrics.compute()
+        self.val_metrics.reset()
+        self.log_all(metrics)
+
+    def test_epoch_end(self, outputs: dict):
+        """What to do at the end of a test epoch. Logs everything."""
+        metrics = self.test_metrics.compute()
+        self.test_metrics.reset()
+        self.log_all(metrics)
+
+    def configure_optimizers(self):
+        """Configure the optimizer and/or lr schedulers"""
+        opt_params = self.hparams.model["optimizer"]
+
+        params = []
+        if hasattr(self, "mlp"):
+            params.append({"params": self.mlp.parameters(), "lr": opt_params["lr"]})
+        if hasattr(self, "prot_encoder"):
+            params.append({"params": self.prot_encoder.parameters(), "lr": opt_params["prot_lr"]})
+        if hasattr(self, "drug_encoder"):
+            params.append({"params": self.drug_encoder.parameters(), "lr": opt_params["drug_lr"]})
+        if hasattr(self, "prot_node_classifier"):
+            params.append({"params": self.prot_node_classifier.parameters(), "lr": opt_params["prot_lr"]})
+        if hasattr(self, "drug_node_classifier"):
+            params.append({"params": self.drug_node_classifier.parameters(), "lr": opt_params["drug_lr"]})
+
+        optimizer = Adam(params=self.parameters(), lr=opt_params["lr"], betas=(0.9, 0.95))
+
+        return [optimizer], [self.parse_lr_scheduler(optimizer, opt_params, opt_params["lr_schedule"])]
+
+    def parse_lr_scheduler(self, optimizer, opt_params, lr_params):
+        """Parse learning rate scheduling based on config args"""
+        lr_scheduler = {"monitor": lr_params["monitor"]}
+        if lr_params["module"] == "rlrop":
+            lr_scheduler["scheduler"] = ReduceLROnPlateau(
+                optimizer,
+                verbose=True,
+                factor=lr_params["factor"],
+                patience=lr_params["patience"],
+            )
+        elif lr_params["module"] == "lwcawr":
+            lr_scheduler["scheduler"] = LinearWarmupCosineAnnealingWarmRestartsLR(
+                optimizer,
+                warmup_epochs=lr_params["warmup_epochs"],
+                start_lr=float(lr_params["start_lr"]),
+                peak_lr=float(opt_params["lr"]),
+                cos_restart_dist=lr_params["cos_restart_dist"],
+                cos_eta_min=float(lr_params["min_lr"]),
+            )
+        elif lr_params["module"] == "lwca":
+            lr_scheduler["scheduler"] = LinearWarmupCosineAnnealingLR(
+                optimizer,
+                warmup_epochs=lr_params["warmup_epochs"],
+                max_epochs=lr_params["cos_restart_dist"],
+                eta_min=float(lr_params["min_lr"]),
+                warmup_start_lr=float(lr_params["start_lr"]),
+            )
+        elif lr_params["module"] == "calr":
+            lr_scheduler["scheduler"] = CosineAnnealingLR(
+                optimizer,
+                T_max=float(lr_params["max_epochs"]),
+            )
+        else:
+            lr_scheduler["scheduler"] = ReduceLROnPlateau(
+                optimizer,
+                verbose=True,
+                factor=0.1,
+                patience=20,
+            )
+
+        return lr_scheduler

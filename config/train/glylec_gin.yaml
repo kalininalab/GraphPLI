@@ -1,0 +1,82 @@
+runs: 1
+seed: 42
+name: rindti_gin_cd_l2_ict
+datamodule:
+  # filename: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_full/results/prepare_all/rlnwgncdCanc_acb54525.pkl  # CCD
+  # filename: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_full/results/prepare_all/rlnwgncdIanc_a69945a1.pkl  # ICD
+  # filename: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_full/results/prepare_all/rlnwgnctCanc_f527d05a.pkl  # CCT
+  filename: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_full/results/prepare_all/rlnwgnctIanc_0d896c02.pkl  # ICT
+  exp_name: glylec
+  batch_size: 64
+  num_workers: 14
+transform:
+  mode: none  # esm  # neighbors
+  k: 3
+  spots: 3
+  graphs:
+    main:
+      weight: 4
+    prot:
+      weight: 1
+trainer:
+  gpus: 1
+  max_epochs: 150
+  profiler: null
+  gradient_clip_val: 100
+early_stop:
+  patience: 20
+  monitor: val_loss
+  mode: min
+checkpoints:
+  monitor: val_BinaryAccuracy
+  save_top_k: 3
+  mode: max
+model:
+  module: class
+  feat_method: element_l2
+  monitor: val_loss
+  drug:
+    hidden_dim: 256
+    method: graph
+    node:
+      module: ginconv
+      dropout: 0.1
+      hidden_dim: 256
+      num_layers: 3
+    pool:
+      module: mean
+      num_heads: 4
+      hidden_dim: 128
+      ratio: 0.25
+  prot:
+    hidden_dim: 256
+    method: graph
+    node:
+      module: ginconv
+      dropout: 0.1
+      hidden_dim: 256
+      num_layers: 3
+    pool:
+      module: mean
+      num_heads: 4
+      hidden_dim: 128
+      ratio: 0.25
+  mlp:
+    dropout: 0.2
+    hidden_dim: 512
+    num_layers: 3
+  optimizer:
+    module: adam
+    lr: 0.0001
+    single_lr: True
+    prot_lr: 0.001
+    drug_lr: 0.001
+    weight_decay: 0.01
+    momentum: 0.01
+    lr_schedule:
+      module: lwca
+      monitor: val_loss
+      cos_restart_dist: 50
+      warmup_epochs: 25
+      min_lr: 1e-7
+      start_lr: 1e-5
