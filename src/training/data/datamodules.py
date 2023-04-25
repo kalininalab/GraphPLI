@@ -1,7 +1,7 @@
 from pytorch_lightning import LightningDataModule
 from torch_geometric.loader import DataLoader, DynamicBatchSampler
 
-from src.data.datasets import DTIDataset
+from src.training.data.datasets import DTIDataset
 
 
 class DTIDataModule(LightningDataModule):

@@ -6,7 +6,7 @@ import torch
 from torch import Tensor
 from torch_geometric.data import Data
 
-from src.layers.mlp import MLP
+from src.training.layers.mlp import MLP
 
 
 class PickleEncoder(LightningModule):

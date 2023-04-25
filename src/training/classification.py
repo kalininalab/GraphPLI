@@ -8,15 +8,15 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 from torchmetrics import MetricCollection, Accuracy, AUROC, MatthewsCorrCoef
 
-from src.data.data import TwoGraphData
-from src.layers.encoder.graph_encoder import GraphEncoder
-from src.layers.encoder.pickle_encoder import PickleEncoder
-from src.layers.encoder.pretrained_encoder import PretrainedEncoder
-from src.layers.encoder.sweet_net_encoder import SweetNetEncoder
-from src.layers.mlp import MLP
-from src.lr_schedules.LWCA import LinearWarmupCosineAnnealingLR
-from src.lr_schedules.LWCAWR import LinearWarmupCosineAnnealingWarmRestartsLR
-from src.utils.cli import remove_arg_prefix
+from src.training.data.data import TwoGraphData
+from src.training.layers.encoder.graph_encoder import GraphEncoder
+from src.training.layers.encoder.pickle_encoder import PickleEncoder
+from src.training.layers.encoder.pretrained_encoder import PretrainedEncoder
+from src.training.layers.encoder.sweet_net_encoder import SweetNetEncoder
+from src.training.layers.mlp import MLP
+from src.training.lr_schedules.LWCA import LinearWarmupCosineAnnealingLR
+from src.training.lr_schedules.LWCAWR import LinearWarmupCosineAnnealingWarmRestartsLR
+from src.training.utils.cli import remove_arg_prefix
 
 encoders = {
     "graph": GraphEncoder,

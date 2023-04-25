@@ -5,11 +5,11 @@ from torch import nn
 from torch.functional import Tensor
 from torch_geometric.data import Data
 
-from src.layers.graphconv.gcnet import GCNet
-from src.layers.graphconv.ginconv import GINConvNet
-from src.layers.graphconv.sagenet import SAGENet
-from src.layers.graphpool.gmt import GMTNet
-from src.layers.graphpool.mean import MeanPool
+from src.training.layers.graphconv.gcnet import GCNet
+from src.training.layers.graphconv.ginconv import GINConvNet
+from src.training.layers.graphconv.sagenet import SAGENet
+from src.training.layers.graphpool.gmt import GMTNet
+from src.training.layers.graphpool.mean import MeanPool
 
 node_embedders = {
     "gcn": GCNet,

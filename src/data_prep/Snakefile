@@ -1,0 +1,29 @@
+from snakemake.utils import validate
+from scripts.snakemake_helper import SnakemakeHelper
+import os
+
+
+configfile: "config/snakemake/default.yaml"
+
+
+validate(config, schema="schemas/config.schema.yaml")
+sh = SnakemakeHelper(config, 8)
+
+
+include: "rules/sanity_checks.smk"
+include: "rules/prots.smk"
+include: "rules/drugs.smk"
+include: "rules/data.smk"
+
+
+if config["only_prots"] == "both":
+    output = [pretrain_prot_data, final_output]
+elif config["only_prots"]:
+    output = [pretrain_prot_data]
+else:
+    output = [final_output]
+
+
+rule all:
+    input:
+        output,

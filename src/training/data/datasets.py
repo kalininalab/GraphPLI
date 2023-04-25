@@ -7,7 +7,7 @@ import torch
 from deprecate import deprecated
 from torch_geometric.data import InMemoryDataset
 
-from src.data.data import TwoGraphData
+from src.training.data.data import TwoGraphData
 
 
 @deprecated

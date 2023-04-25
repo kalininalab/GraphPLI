@@ -6,9 +6,9 @@ from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, RichModelSummary, RichProgressBar
 from pytorch_lightning.loggers import WandbLogger
 
-from src.data.datamodules import DTIDataModule
-from src.classification import ClassificationModel
-from src.utils.cli import read_config, get_git_hash
+from src.training.data.datamodules import DTIDataModule
+from src.training.classification import ClassificationModel
+from src.training.utils.cli import read_config, get_git_hash
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 os.environ["WANDB_CACHE_DIR"] = "/scratch/SCRATCH_SAS/roman/.cache/wandb"
