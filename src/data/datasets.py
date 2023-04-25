@@ -58,7 +58,7 @@ class DTIDataset(InMemoryDataset):
         basefilename = os.path.basename(filename)
         basefilename = os.path.splitext(basefilename)[0]
         self.filename = filename
-        return os.path.join("/scratch/SCRATCH_SAS/roman/rindti/data", exp_name, basefilename)
+        return os.path.join("/scratch/SCRATCH_SAS/roman/siplgn/data", exp_name, basefilename)
 
     def process_(self, data_list: list, split: str):
         if self.pre_filter is not None:

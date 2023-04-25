@@ -1,4 +1,3 @@
-runs: 1
 seed: 42
 name: rindti_gin_cd_l2_ict
 datamodule:
@@ -9,30 +8,16 @@ datamodule:
   exp_name: glylec
   batch_size: 64
   num_workers: 14
-transform:
-  mode: none  # esm  # neighbors
-  k: 3
-  spots: 3
-  graphs:
-    main:
-      weight: 4
-    prot:
-      weight: 1
 trainer:
   gpus: 1
   max_epochs: 150
   profiler: null
   gradient_clip_val: 100
-early_stop:
-  patience: 20
-  monitor: val_loss
-  mode: min
 checkpoints:
   monitor: val_BinaryAccuracy
   save_top_k: 3
   mode: max
 model:
-  module: class
   feat_method: element_l2
   monitor: val_loss
   drug:
@@ -68,9 +53,6 @@ model:
   optimizer:
     module: adam
     lr: 0.0001
-    single_lr: True
-    prot_lr: 0.001
-    drug_lr: 0.001
     weight_decay: 0.01
     momentum: 0.01
     lr_schedule:

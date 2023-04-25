@@ -1,31 +1,48 @@
+from typing import Any, Optional
+
 import torch
+import torch.nn.functional as F
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
-from torchmetrics import (
-    AUROC,
-    Accuracy,
-    ExplainedVariance,
-    MatthewsCorrCoef,
-    MeanAbsoluteError,
-    MeanSquaredError,
-    MetricCollection,
-)
+from torchmetrics import MetricCollection, Accuracy, AUROC, MatthewsCorrCoef
 
 from src.data.data import TwoGraphData
+from src.layers.encoder.graph_encoder import GraphEncoder
+from src.layers.encoder.pickle_encoder import PickleEncoder
+from src.layers.encoder.pretrained_encoder import PretrainedEncoder
+from src.layers.encoder.sweet_net_encoder import SweetNetEncoder
+from src.layers.mlp import MLP
 from src.lr_schedules.LWCA import LinearWarmupCosineAnnealingLR
 from src.lr_schedules.LWCAWR import LinearWarmupCosineAnnealingWarmRestartsLR
+from src.utils.cli import remove_arg_prefix
+
+encoders = {
+    "graph": GraphEncoder,
+    "sweetnet": SweetNetEncoder,
+    "pretrained": PretrainedEncoder,
+    "pickle": PickleEncoder,
+}
 
 
-class BaseModel(LightningModule):
-    """Base model, defines a lot of helper functions."""
+class ClassificationModel(LightningModule):
+    """Model for DTI prediction as a classification problem."""
 
     def __init__(self, **kwargs):
         super().__init__()
         self.save_hyperparameters()
         self.batch_size = kwargs["datamodule"]["batch_size"]
-        return kwargs["model"]
+        self._determine_feat_method(
+            kwargs["model"]["feat_method"],
+            kwargs["model"]["prot"]["hidden_dim"],
+            kwargs["model"]["drug"]["hidden_dim"],
+        )
+        self.prot_encoder = encoders[kwargs["model"]["prot"]["method"]](**kwargs["model"]["prot"])
+        self.drug_encoder = encoders[kwargs["model"]["drug"]["method"]](**kwargs["model"]["drug"])
+        self.mlp = MLP(input_dim=self.embed_dim, out_dim=1, **kwargs["model"]["mlp"], classify=True)
+
+        self.train_metrics, self.val_metrics, self.test_metrics = self._set_class_metrics()
 
     def _set_class_metrics(self, num_classes: int = 2, prefix: str = ""):
         """Initialize classification metrics for this sample"""
@@ -56,20 +73,65 @@ class BaseModel(LightningModule):
             metrics.clone(prefix=prefix + "test_"),
         )
 
-    def _set_reg_metrics(self):
-        """Initialize regression metrics for this model"""
-        metrics = MetricCollection([MeanAbsoluteError(), MeanSquaredError(), ExplainedVariance()])
-        self.train_metrics = metrics.clone(prefix="train_")
-        self.val_metrics = metrics.clone(prefix="val_")
-        self.test_metrics = metrics.clone(prefix="test_")
+    def forward(self, prot: dict, drug: dict = None) -> dict:
+        """Forward the data though the classification model"""
+        if drug is None and ((isinstance(prot, list) or isinstance(prot, tuple)) and len(prot) == 2):
+            prot, drug = prot
+            prot["x"] = prot["x"].squeeze()
+            prot["edge_index"] = prot["edge_index"].squeeze()
+            prot["batch"] = prot["batch"].squeeze()
+            drug["x"] = drug["x"].squeeze()
+            drug["edge_index"] = drug["edge_index"].squeeze()
+            drug["batch"] = drug["batch"].squeeze()
+        if "prot_x" in prot:
+            prot = remove_arg_prefix("prot_", prot)
+            drug = remove_arg_prefix("drug_", drug)
+        prot_embed, _ = self.prot_encoder(prot)
+        drug_embed, _ = self.drug_encoder(drug)
+        joint_embedding = self.merge_features(drug_embed, prot_embed)
 
-    def _determine_feat_method(
-        self,
-        feat_method: str,
-        drug_hidden_dim: int = None,
-        prot_hidden_dim: int = None,
-        **kwargs,
-    ):
+        pred, embed = self.mlp(joint_embedding)
+        return dict(
+            pred=pred,
+            embed=embed,
+            prot_embed=prot_embed,
+            drug_embed=drug_embed,
+            joint_embed=joint_embedding,
+        )
+
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        prot = remove_arg_prefix("prot_", batch)
+        drug = remove_arg_prefix("drug_", batch)
+        fwd_dict = self.forward(prot, drug)
+        fwd_dict["pred"] = torch.sigmoid(fwd_dict["pred"])
+        if "label" in batch:
+            fwd_dict["label"] = batch["label"]
+        return fwd_dict
+
+    def shared_step(self, data: TwoGraphData) -> dict:
+        """Step that is the same for train, validation and test.
+
+        Returns:
+            dict: dict with different metrics - losses, accuracies etc. Has to contain 'loss'.
+        """
+        prot = remove_arg_prefix("prot_", data)
+        drug = remove_arg_prefix("drug_", data)
+        fwd_dict = self.forward(prot, drug)
+        labels = data["label"].unsqueeze(1)
+
+        # weights = torch.where(labels == 0, self.pos_weight.to(labels.device),
+        #                       self.neg_weight.to(labels.device)).float()
+        bce_loss = F.binary_cross_entropy_with_logits(fwd_dict["pred"], labels.float())
+
+        return dict(loss=bce_loss, preds=torch.sigmoid(fwd_dict["pred"].detach()), labels=labels.detach())
+
+    def validation_epoch_end(self, outputs: dict):
+        """WHat to do at the end of a validation epoch. Logs everthing."""
+        metrics = self.val_metrics.compute()
+        self.val_metrics.reset()
+        self.log_all(metrics)
+
+    def _determine_feat_method(self, feat_method: str, drug_hidden_dim: int = None, prot_hidden_dim: int = None, **kwargs,):
         """Which method to use for concatenating drug and protein representations."""
         if feat_method == "concat":
             self.merge_features = self._concat
@@ -157,13 +219,13 @@ class BaseModel(LightningModule):
         if hasattr(self, "mlp"):
             params.append({"params": self.mlp.parameters(), "lr": opt_params["lr"]})
         if hasattr(self, "prot_encoder"):
-            params.append({"params": self.prot_encoder.parameters(), "lr": opt_params["prot_lr"]})
+            params.append({"params": self.prot_encoder.parameters(), "lr": opt_params["lr"]})
         if hasattr(self, "drug_encoder"):
-            params.append({"params": self.drug_encoder.parameters(), "lr": opt_params["drug_lr"]})
+            params.append({"params": self.drug_encoder.parameters(), "lr": opt_params["lr"]})
         if hasattr(self, "prot_node_classifier"):
-            params.append({"params": self.prot_node_classifier.parameters(), "lr": opt_params["prot_lr"]})
+            params.append({"params": self.prot_node_classifier.parameters(), "lr": opt_params["lr"]})
         if hasattr(self, "drug_node_classifier"):
-            params.append({"params": self.drug_node_classifier.parameters(), "lr": opt_params["drug_lr"]})
+            params.append({"params": self.drug_node_classifier.parameters(), "lr": opt_params["lr"]})
 
         optimizer = Adam(params=self.parameters(), lr=opt_params["lr"], betas=(0.9, 0.95))
 

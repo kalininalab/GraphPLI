@@ -3,7 +3,7 @@ from typing import List, Tuple
 from torch import nn
 from torch.functional import Tensor
 
-from ..base_layer import BaseLayer
+from src.layers.base_layer import BaseLayer
 
 
 class MLP(BaseLayer):
