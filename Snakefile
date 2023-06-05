@@ -1,19 +1,19 @@
 from snakemake.utils import validate
-from scripts.snakemake_helper import SnakemakeHelper
-import os
+
+from src.data_prep.scripts.snakemake_helper import SnakemakeHelper
 
 
 configfile: "config/snakemake/default.yaml"
 
 
-validate(config, schema="schemas/config.schema.yaml")
+validate(config, schema="src/data_prep/schemas/config.schema.yaml")
 sh = SnakemakeHelper(config, 8)
 
 
-include: "rules/sanity_checks.smk"
-include: "rules/prots.smk"
-include: "rules/drugs.smk"
-include: "rules/data.smk"
+include: "src/data_prep/rules/sanity_checks.smk"
+include: "src/data_prep/rules/prots.smk"
+include: "src/data_prep/rules/drugs.smk"
+include: "src/data_prep/rules/data.smk"
 
 
 if config["only_prots"] == "both":

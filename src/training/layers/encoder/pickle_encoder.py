@@ -14,11 +14,11 @@ class PickleEncoder(LightningModule):
         super(PickleEncoder, self).__init__()
         self.data = pickle.load(open(kwargs["file"], "rb"))
         self.mlp = MLP(
-            len(list(self.data.items())[0][1]),
+            len(list(self.data.items())[0][1].squeeze()),
             kwargs["hidden_dim"],
             kwargs["hidden_dim"],
         )
 
     def forward(self, data: Union[dict, Data]) -> Union[Tensor, Tuple[Tensor, Optional[Tensor]]]:
         embed = torch.stack([torch.tensor(self.data[idx]) for idx in data["id"]]).cuda()
-        return self.mlp(embed)[0], None
+        return self.mlp(embed)[0].squeeze(), None

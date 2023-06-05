@@ -1,4 +1,3 @@
-import warnings
 from typing import Tuple, Union
 
 import torch
@@ -10,12 +9,7 @@ from torch.functional import Tensor
 from torch_geometric.data import Data
 from torch_geometric.nn import global_max_pool as gmp
 from torch_geometric.nn import global_mean_pool as gap
-
-if torch.cuda.is_available():
-    from glycowork.ml.models import SweetNet, init_weights, trained_SweetNet
-else:
-    trained_SweetNet, SweetNet, init_weights = torch.nn.Module, torch.nn.Module, torch.nn.Module
-    warnings.warn("GPU not available")
+from glycowork.ml.models import SweetNet, init_weights, trained_SweetNet
 
 
 class SweetNetEncoder(LightningModule):
@@ -35,10 +29,11 @@ class SweetNetAdapter(SweetNet):
     """Wrapper for SweetNet that can be used with Lightning."""
 
     def __init__(self, trainable=False, **kwargs):
-        super().__init__(len(lib), 970)
+        super().__init__(len(lib), 961)
         self.trainable = trainable
         self.apply(lambda module: init_weights(module, mode="sparse"))
-        self.load_state_dict(trained_SweetNet)
+        self.load_state_dict(torch.load(trained_SweetNet))
+        # self.load_state_dict(trained_SweetNet)
         self.lin4 = torch.nn.Linear(256, kwargs["hidden_dim"])
         # self.single_embeds = torch.nn.Linear(16, kwargs["hidden_dim"])
         self.hidden_dim = kwargs["hidden_dim"]
@@ -46,14 +41,23 @@ class SweetNetAdapter(SweetNet):
 
     def forward(self, x, edge_index=None, batch=None, inference=False):
         """Forward a glycan through the Sweetnet"""
+        def adapt(edges):
+            pyg_edges = []
+            for i in range(len(edges)):
+                for j in range(i + 1, len(edges)):
+                    if edges[i, j] == 1:
+                        pyg_edges += [[i, j], [j, i]]
+            return pyg_edges
+
         x_tmp, edge_index_tmp = list(zip(*[glycan_to_graph(iupac) for iupac in x]))
         embeddings = []
         for y, edges, iupac in zip(x_tmp, edge_index_tmp, x):
             if iupac in self.cache:
                 embeddings.append(torch.tensor(self.cache[iupac]))
                 continue
-            y = self.item_embedding(torch.tensor(y).cuda())
-            # y = self.item_embedding(torch.tensor(y))
+            # print(y)
+            y = self.item_embedding(torch.tensor([lib.index(y[i]) for i in range(len(y))]).cuda())
+            # y = self.item_embedding(torch.tensor(y).cuda())
             y = y.squeeze(1)
             if len(edges) == 0:
                 # embeddings.append(self.single_embeds(y.detach().squeeze()))
@@ -62,8 +66,8 @@ class SweetNetAdapter(SweetNet):
                 embeddings.append(torch.zeros(self.hidden_dim).cuda())
                 self.cache[iupac] = torch.tensor(embeddings[-1])
                 continue
-            edges = torch.tensor(edges).cuda().to(torch.long)
-            # edges = torch.tensor(edges).to(torch.long)
+            edges = torch.tensor(adapt(edges)).cuda().to(torch.long).T
+            # edges = torch.tensor(edges).to(torch.long).cuda()
             y = F.leaky_relu(self.conv1(y, edges))
             y, edges, _, batch, _, _ = self.pool1(y, edges, None)
             y1 = torch.cat([gmp(y, batch), gap(y, batch)], dim=1)

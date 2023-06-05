@@ -1,0 +1,61 @@
+seed: 42
+name: pooling_random_gmt
+datamodule:
+  filename: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_full/results/prepare_all/rlnwgnranc_6a3905bf.pkl
+  exp_name: thesis
+  batch_size: 64
+  num_workers: 14
+trainer:
+  gpus: 1
+  max_epochs: 150
+  profiler: null
+  gradient_clip_val: 100
+checkpoints:
+  monitor: val_BinaryAccuracy
+  save_top_k: 3
+  mode: max
+model:
+  feat_method: concat
+  monitor: val_loss
+  drug:
+    hidden_dim: 128
+    method: graph
+    node:
+      module: ginconv
+      dropout: 0.1
+      hidden_dim: 128
+      num_layers: 3
+    pool:
+      module: gmt
+      num_heads: 4
+      hidden_dim: 128
+      ratio: 0.25
+  prot:
+    hidden_dim: 128
+    method: graph
+    node:
+      module: ginconv
+      dropout: 0.1
+      hidden_dim: 128
+      num_layers: 3
+    pool:
+      module: gmt
+      num_heads: 4
+      hidden_dim: 128
+      ratio: 0.25
+  mlp:
+    dropout: 0.2
+    hidden_dim: 512
+    num_layers: 3
+  optimizer:
+    module: adam
+    lr: 0.0001
+    weight_decay: 0.01
+    momentum: 0.01
+    lr_schedule:
+      module: lwca
+      monitor: val_loss
+      cos_restart_dist: 50
+      warmup_epochs: 25
+      min_lr: 1e-7
+      start_lr: 1e-5

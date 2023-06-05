@@ -1,8 +1,12 @@
 import os
+import pickle
+import re
 
 import esm
 import pandas as pd
 import torch
+from jsonargparse import CLI
+
 from extract_esm import create_parser
 from extract_esm import main as extract_main
 
@@ -32,7 +36,7 @@ def generate_esm_python(prot: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_esm_script(prot: pd.DataFrame) -> pd.DataFrame:
-    """Create an ESM script for btach processing."""
+    """Create an ESM script for batch processing."""
     prot_ids, seqs = list(zip(*[(k, v) for k, v in prot["Target"].to_dict().items()]))
     os.makedirs("./esms", exist_ok=True)
     with open("./esms/prots.fasta", "w") as fasta:
@@ -54,8 +58,33 @@ def generate_esm_script(prot: pd.DataFrame) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    import pickle
+    if "snakemake" in globals():
+        prots = pd.read_csv(snakemake.input.seqs, sep="\t").set_index("Target_ID")
+        prots = generate_esm_script(prots)
+        prots.to_pickle(snakemake.output.pickle)
 
-    prots = pd.read_csv(snakemake.input.seqs, sep="\t").set_index("Target_ID")
-    prots = generate_esm_script(prots)
-    prots.to_pickle(snakemake.output.pickle)
+    else:
+        def run(fasta_filename: str, pickle_filename: str):
+            with open(fasta_filename, "r") as data:
+                prot_ids = [line.strip()[1:] for line in data.readlines() if line.startswith(">")]
+
+            cut_fasta_file = fasta_filename.split(".")[0] + "_cut.fasta"
+            with open(fasta_filename, "r") as data, open(cut_fasta_file, "w") as out:
+                for line in data.readlines():
+                    if line.startswith(">"):
+                        print(line.strip(), file=out)
+                    else:
+                        print(re.sub(r"[^ARNDCEQGHILKMFPSTWYV]", "A", line.strip()[:1022]), file=out)
+
+            esm_parser = create_parser()
+            esm_args = esm_parser.parse_args(
+                ["esm1b_t33_650M_UR50S", cut_fasta_file, "esms/", "--repr_layers", "33", "--include", "mean"]
+            )
+            extract_main(esm_args)
+            data = dict()
+            for prot_id in prot_ids:
+                data[prot_id] = torch.load(f"./esms/{prot_id}.pt")["mean_representations"][33].unsqueeze(0)
+
+            pickle.dump(data, open(pickle_filename, "wb"))
+
+        cli = CLI(run)

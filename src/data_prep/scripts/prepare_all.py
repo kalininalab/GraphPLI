@@ -2,6 +2,7 @@ import pickle
 from typing import Iterable
 
 import numpy as np
+import pandas
 import pandas as pd
 from pandas.core.frame import DataFrame
 from utils import get_config
@@ -35,33 +36,39 @@ if __name__ == "__main__":
     interactions = pd.read_csv(snakemake.input.inter, sep="\t")
 
     with open(snakemake.input.drugs, "rb") as file:
-        drugs = pickle.load(file)
+        # drugs = pickle.load(file)
+        drugs = pandas.read_pickle(file)
 
     with open(snakemake.input.prots, "rb") as file:
-        prots = pickle.load(file)
+        # prots = pickle.load(file)
+        prots = pandas.read_pickle(file)
 
     prots = prots.dropna()
     drugs = drugs.dropna()
+
+    print(interactions.shape)
 
     interactions = interactions[interactions["Target_ID"].isin(prots.index)]
     interactions = interactions[interactions["Drug_ID"].isin(drugs.index)]
 
     prots = prots[prots.index.isin(interactions["Target_ID"].unique())]
     # comment following line for lectinoracle generation of dataset
-    drugs = drugs[drugs.index.isin(interactions["Drug_ID"].unique())]
+    # drugs = drugs[drugs.index.isin(interactions["Drug_ID"].unique())]
 
     prot_count = interactions["Target_ID"].value_counts()
     drug_count = interactions["Drug_ID"].value_counts()
 
     prots["data"] = prots.apply(lambda x: {**x["data"], "count": prot_count[x.name]}, axis=1)
     # comment following line for lectinoracle generation of dataset
-    drugs["data"] = drugs.apply(lambda x: {**x["data"], "count": drug_count[x.name]}, axis=1)
+    # drugs["data"] = drugs.apply(lambda x: {**x["data"], "count": drug_count[x.name]}, axis=1)
 
     full_data = process_df(interactions)
     snakemake.config["data"] = {}
     snakemake.config["data"]["prot"] = get_config(prots, "prot")
     if "sequence_only" not in snakemake.config or not snakemake.config["sequence_only"]["drugs"]:
         snakemake.config["data"]["drug"] = get_config(drugs, "drug")
+
+    print(drugs.columns)
 
     final_data = {
         "data": full_data,

@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+from pytorch_lightning import seed_everything
+
 
 def posneg_filter(inter: pd.DataFrame) -> pd.DataFrame:
     """Only keep drugs that have at least 1 positive and negative interaction"""
@@ -59,16 +61,17 @@ def sample_balanced(inter):
 
 
 if __name__ == "__main__":
-
-    from pytorch_lightning import seed_everything
-
     seed_everything(snakemake.config["seed"])
 
     inter = pd.read_csv(snakemake.input.inter, sep="\t")
 
     config = snakemake.config["parse_dataset"]
+    print(inter.shape)
+    print(inter)
     # If duplicates, take median of entries
     inter = inter.groupby(["Drug_ID", "Target_ID"]).agg("median").reset_index()
+    print(inter.shape)
+    print(inter)
     if config["task"] == "class":
         inter["Y"] = inter["Y"].apply(lambda x: int(x < config["threshold"]))
     elif config["task"] == "reg":
