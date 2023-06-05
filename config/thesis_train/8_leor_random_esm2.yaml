@@ -23,7 +23,7 @@ model:
   prot:
     hidden_dim: 128
     method: pickle
-    file: /home/rjo21/Desktop/SIPLGN/datasets/glycowork/Lectins_ESM1b.pkl
+    file: /home/rjo21/Desktop/SIPLGN/datasets/glycowork/Lectins_ESM2_new.pkl
   mlp:
     dropout: 0.2
     hidden_dim: 512
