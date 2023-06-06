@@ -1,0 +1,42 @@
+seed: 42
+name: leor_icd_esm2
+datamodule:
+  filename: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_esm/results/prepare_all/elnwIndanc_a73e0fe2.pkl
+  exp_name: thesis
+  batch_size: 64
+  num_workers: 14
+trainer:
+  gpus: 1
+  max_epochs: 150
+  profiler: null
+  gradient_clip_val: 100
+checkpoints:
+  monitor: val_BinaryAccuracy
+  save_top_k: 3
+  mode: max
+model:
+  feat_method: concat
+  monitor: val_loss
+  drug:
+    hidden_dim: 128
+    method: sweetnet
+  prot:
+    hidden_dim: 128
+    method: pickle
+    file: /home/rjo21/Desktop/SIPLGN/datasets/glycowork/Lectins_ESM2_new.pkl
+  mlp:
+    dropout: 0.2
+    hidden_dim: 512
+    num_layers: 3
+  optimizer:
+    module: adam
+    lr: 0.0001
+    weight_decay: 0.01
+    momentum: 0.01
+    lr_schedule:
+      module: lwca
+      monitor: val_loss
+      cos_restart_dist: 50
+      warmup_epochs: 25
+      min_lr: 1e-7
+      start_lr: 1e-5
