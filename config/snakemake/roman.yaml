@@ -4,13 +4,14 @@ prots:
   features:
     method: rinerator # rinerator, distance, esm
 drugs:
-  node_feats: IUPAC # IUPAC, label, onehot, glycan
+  node_feats: glycan # IUPAC, label, onehot, glycan
 split_data:
-  method: target # custom, random, drug, target
-  # mode: drug  # drug, target
-  # file: CCSgly.tsv
+  method: custom # custom, random, drug, target
+  mode: inter  # drug, target, inter
+  file: ICD.tsv
   train: 0.7
   val: 0.2
 parse_dataset:
   filtering: all
-  threshold: 0.5
+  threshold: 1.645
+

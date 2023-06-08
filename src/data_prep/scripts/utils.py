@@ -79,6 +79,9 @@ def tsv_to_dict(filepath, sep="\t"):
     output = {}
     with open(filepath, "r") as data:
         for line in data.readlines():
-            key, val = line.strip().split(sep)
-            output[key] = val
+            parts = line.strip().split(sep)
+            key = parts[:-1]
+            if isinstance(key, list):
+                key = tuple(key)
+            output[key] = parts[-1]
     return output

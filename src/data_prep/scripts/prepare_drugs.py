@@ -110,5 +110,5 @@ if __name__ == "__main__":
     ligs = pd.read_csv(snakemake.input.lig, sep="\t").set_index("Drug_ID")
     ligs["data"] = ligs["Drug"].apply(drug_enc)
     # comment following line for lectinoracle generation of dataset
-    # ligs = ligs[ligs["data"].notna()]
+    ligs = ligs[ligs["data"].notna()]
     ligs = ligs.to_pickle(snakemake.output.pickle)

@@ -81,11 +81,22 @@ def split_custom(inter, mode, **kwargs):
         col = "Target_ID"
     elif mode == "drug":
         col = "Drug_ID"
+    elif mode == "inter":
+        pass  # col = ["Drug_ID", "Target_ID"]
     else:
         raise ValueError("Unknown mode for custom splits")
 
     mapping = tsv_to_dict(os.path.join(snakemake.config["source"], "tables", snakemake.config["split_data"]["file"]))
-    inter["split"] = inter[col].apply(lambda x: mapping[x])
+    if mode == "inter":
+        tmp = []
+        for index, row in inter.iterrows():
+            tmp.append(mapping.get((row["Drug_ID"], row["Target_ID"]), ""))
+        print("train:", tmp.count("train"))
+        print("val  :", tmp.count("val"))
+        print("test :", tmp.count("test"))
+        inter["split"] = tmp
+    else:
+        inter["split"] = inter[col].apply(lambda x: mapping.get(x, ""))
     return inter
 
 
