@@ -1,16 +1,9 @@
 # the two root directories to take the data from and to store the data in
-source: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_full/resources
+source: ./prebuild/structmodel/resources  # or ./prebuild/leor/resources
 prots:
   features:
     method: rinerator # rinerator, distance, esm
 drugs:
   node_feats: IUPAC # IUPAC, label, onehot, glycan
 split_data:
-  method: target # custom, random, drug, target
-  # mode: drug  # drug, target
-  # file: CCSgly.tsv
-  train: 0.7
-  val: 0.2
-parse_dataset:
-  filtering: all
-  threshold: 0.5
+  method: target # random, drug, target

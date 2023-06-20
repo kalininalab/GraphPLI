@@ -16,7 +16,7 @@ from src.training.layers.encoder.sweet_net_encoder import SweetNetEncoder
 from src.training.layers.mlp import MLP
 from src.training.lr_schedules.LWCA import LinearWarmupCosineAnnealingLR
 from src.training.lr_schedules.LWCAWR import LinearWarmupCosineAnnealingWarmRestartsLR
-from src.training.utils.cli import remove_arg_prefix
+from train import remove_arg_prefix
 
 encoders = {
     "graph": GraphEncoder,
@@ -52,10 +52,6 @@ class ClassificationModel(LightningModule):
                     Accuracy(task="binary"),
                     AUROC(task="binary"),
                     MatthewsCorrCoef(task="binary"),
-                    # DyBiAUROC(),
-                    # DyBiMCC(),
-                    # Decider(),
-                    # DistOverlap(),
                 ]
             )
         else:
@@ -64,7 +60,6 @@ class ClassificationModel(LightningModule):
                     Accuracy(task="multiclass"),
                     AUROC(task="multiclass"),
                     MatthewsCorrCoef(num_classes=num_classes),
-                    # DistOverlap(),
                 ]
             )
         return (

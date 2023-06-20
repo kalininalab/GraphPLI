@@ -5,13 +5,48 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, RichModelSummary, RichProgressBar
 from pytorch_lightning.loggers import WandbLogger
+import git
+import yaml
 
 from src.training.data.datamodules import DTIDataModule
 from src.training.classification import ClassificationModel
-from src.training.utils.cli import read_config, get_git_hash
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 os.environ["WANDB_CACHE_DIR"] = "/scratch/SCRATCH_SAS/roman/.cache/wandb"
+
+
+def get_git_hash():
+    """Get the git hash of the current repository."""
+    repo = git.Repo(search_parent_directories=True)
+    return repo.head.object.hexsha
+
+
+def read_config(filename: str) -> dict:
+    """Read in yaml config for training."""
+    with open(filename, "r") as file:
+        config = yaml.load(file, Loader=yaml.FullLoader)
+    return config
+
+
+def remove_arg_prefix(prefix: str, kwargs: dict) -> dict:
+    """Removes the prefix from all the args.
+
+    Args:
+        prefix (str): prefix to remove (`drug_`, `prot_` or `mlp_` usually)
+        kwargs (dict): dict of arguments
+
+    Returns:
+        dict: Sub-dict of arguments
+    """
+    new_kwargs = {}
+    prefix_len = len(prefix)
+    for key, value in kwargs.items():
+        if key.startswith(prefix):
+            new_key = key[prefix_len:]
+            if new_key == "x_batch":
+                new_key = "batch"
+            new_kwargs[new_key] = value
+    return new_kwargs
 
 
 def train(**kwargs):
