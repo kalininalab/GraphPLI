@@ -42,7 +42,7 @@ to the "Cloning"-section below. The next steps are
 Store the code locally by cloning this GitHub repository
 
 ```shell
-git clone -b thesis_roman git@github.com:kalininalab/SIPLGI.git
+git clone -b thesis_roman git@github.com:kalininalab/GraphPLI.git
 ```
 
 ## Data preparation
