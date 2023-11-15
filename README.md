@@ -1,4 +1,4 @@
-# SIPILG - Structure-Informed Prediction of Interactions of Lectins and Glycans
+# GraphPLI - Graph-based Prediction of Protein-Ligand Interactions
 
 
 ## Download and Installation
@@ -18,7 +18,7 @@ conda env create -f environment.yaml
 conda activate sipilg
 ```
 
-## Data preparation
+## Data Preparation
 
 To prepare the data for training or inference, run
 
@@ -31,7 +31,7 @@ which is explained below.
 
 ## Training
 
-To run the training just run
+To run the training, just run
 
 ```shell
 python -m src.train config/train/default.yaml
