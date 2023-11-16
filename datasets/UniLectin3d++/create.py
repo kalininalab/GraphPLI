@@ -63,9 +63,12 @@ def create(target_path, glycowork_path):
     bnd_strct_folder = os.path.join(target_path, "resources", "bound_structs")
     strct_folder = os.path.join(target_path, "resources", "structures")
     table_folder = os.path.join(target_path, "resources", "tables")
-    os.makedirs(bnd_strct_folder, exist_ok=True)
-    os.makedirs(strct_folder, exist_ok=True)
-    os.makedirs(table_folder, exist_ok=True)
+    if not os.path.exists(bnd_strct_folder):
+        os.makedirs(bnd_strct_folder, exist_ok=True)
+    if not os.path.exists(strct_folder):
+        os.makedirs(strct_folder, exist_ok=True)
+    if not os.path.exists(table_folder):
+        os.makedirs(table_folder, exist_ok=True)
 
     df = pd.read_csv("unilectin3D.csv")
     lig_map = dict()

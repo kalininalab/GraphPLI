@@ -1,16 +1,14 @@
 # the two root directories to take the data from and to store the data in
-source: /scratch/SCRATCH_SAS/roman/rindti/datasets/oracle_full/resources
+source: /scratch/SCRATCH_SAS/roman/GraphPLI/unilectin/resources
 prots:
   features:
     method: rinerator # rinerator, distance, esm
 drugs:
   node_feats: glycan # IUPAC, label, onehot, glycan
 split_data:
-  method: custom # custom, random, drug, target
-  mode: inter  # drug, target, inter
-  file: ICD.tsv
-  train: 0.7
-  val: 0.2
+  method: random # custom, random, drug, target
+  train: 0
+  val: 0
 parse_dataset:
   filtering: all
   threshold: 1.645

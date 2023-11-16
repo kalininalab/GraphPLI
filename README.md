@@ -23,7 +23,7 @@ conda activate sipilg
 To prepare the data for training or inference, run
 
 ```shell
-snakemake -j <no_cpus> --configfile config/snakemake/roman.yaml
+snakemake -j <no_cpus> --configfile config/snakemake/unilectin.yaml
 ```
 
 in the root folder of the project. To run these snakemake pipelines, the datasets have to have a specific structure 
