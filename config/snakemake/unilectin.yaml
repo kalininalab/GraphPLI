@@ -11,5 +11,5 @@ split_data:
   val: 0
 parse_dataset:
   filtering: all
-  threshold: 1.645
+  threshold: 0.5
 

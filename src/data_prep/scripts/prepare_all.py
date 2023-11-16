@@ -36,17 +36,13 @@ if __name__ == "__main__":
     interactions = pd.read_csv(snakemake.input.inter, sep="\t")
 
     with open(snakemake.input.drugs, "rb") as file:
-        # drugs = pickle.load(file)
         drugs = pandas.read_pickle(file)
 
     with open(snakemake.input.prots, "rb") as file:
-        # prots = pickle.load(file)
         prots = pandas.read_pickle(file)
 
     prots = prots.dropna()
     drugs = drugs.dropna()
-
-    print(interactions.shape)
 
     interactions = interactions[interactions["Target_ID"].isin(prots.index)]
     interactions = interactions[interactions["Drug_ID"].isin(drugs.index)]
@@ -67,8 +63,6 @@ if __name__ == "__main__":
     snakemake.config["data"]["prot"] = get_config(prots, "prot")
     if "sequence_only" not in snakemake.config or not snakemake.config["sequence_only"]["drugs"]:
         snakemake.config["data"]["drug"] = get_config(drugs, "drug")
-
-    print(drugs.columns)
 
     final_data = {
         "data": full_data,

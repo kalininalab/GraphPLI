@@ -91,9 +91,6 @@ def split_custom(inter, mode, **kwargs):
         tmp = []
         for index, row in inter.iterrows():
             tmp.append(mapping.get((row["Drug_ID"], row["Target_ID"]), ""))
-        print("train:", tmp.count("train"))
-        print("val  :", tmp.count("val"))
-        print("test :", tmp.count("test"))
         inter["split"] = tmp
     else:
         inter["split"] = inter[col].apply(lambda x: mapping.get(x, ""))

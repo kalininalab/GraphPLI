@@ -6,10 +6,9 @@ prots:
 drugs:
   node_feats: glycan # IUPAC, label, onehot, glycan
 split_data:
-  method: custom # custom, random, drug, target
+  method: random # custom, random, drug, target
   mode: inter  # drug, target, inter
-  file: ICD.tsv
+  file: splits/R/inter.tsv
 parse_dataset:
   filtering: all
-  threshold: 1.645
-
+  threshold: 1.075
