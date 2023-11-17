@@ -5,9 +5,11 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint, RichModelSummary, RichProgressBar
 from pytorch_lightning.loggers import WandbLogger
+from torch_geometric.loader import DataLoader
 
 from src.training.data.datamodules import DTIDataModule
 from src.training.classification import ClassificationModel
+from src.training.data.datasets import DTIDataset
 from src.training.utils.cli import read_config, get_git_hash
 
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -20,11 +22,23 @@ def train(**kwargs):
     datamodule = DTIDataModule(**kwargs["datamodule"])
     datamodule.setup()
     datamodule.update_config(kwargs)
+    test_loaders = [datamodule.test_dataloader()]
+    test_names = ["test"]
+    if kwargs["datamodule"].get("add_test", None) is not None:
+        for name, add_data in kwargs["datamodule"]["add_test"].items():
+            test_names.append(name)
+            test_loaders.append(DataLoader(
+                DTIDataset(add_data, kwargs["datamodule"]["exp_name"], split="test"),
+                **datamodule._dl_kwargs(False)
+            ))
+    if len(test_loaders) == 1:
+        test_loaders = test_loaders[0]
 
     logger = WandbLogger(
-        log_model='all',
+        log_model=True,
         project=kwargs["datamodule"]["exp_name"],
         name=kwargs["name"],
+        # offline=True,
     )
     logger.experiment.config.update(kwargs)
 
@@ -41,10 +55,10 @@ def train(**kwargs):
         **kwargs["trainer"],
     )
 
-    model = ClassificationModel(**kwargs)
+    model = ClassificationModel(test_names=test_names, **kwargs)
 
     trainer.fit(model, datamodule)
-    trainer.test(ckpt_path="best", datamodule=datamodule)
+    trainer.test(ckpt_path="best", dataloaders=test_loaders)
 
 
 if __name__ == "__main__":

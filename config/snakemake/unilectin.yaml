@@ -12,4 +12,3 @@ split_data:
 parse_dataset:
   filtering: all
   threshold: 0.5
-

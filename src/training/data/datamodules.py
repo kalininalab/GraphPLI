@@ -15,6 +15,7 @@ class DTIDataModule(LightningDataModule):
             num_workers: int = 1,
             shuffle: bool = True,
             dyn_sampler: bool = False,
+            **kwargs,
     ):
         super().__init__()
         self.filename = filename
@@ -33,11 +34,11 @@ class DTIDataModule(LightningDataModule):
             self.train = DTIDataset(self.filename, self.exp_name, split="train").shuffle()
             self.config = self.train.config
         if split == "val" or split is None:
-            self.val = DTIDataset(self.filename, self.exp_name, split="val").shuffle()
+            self.val = DTIDataset(self.filename, self.exp_name, split="val")
             if self.config is None:
                 self.config = self.val.config
         if split == "test" or split is None:
-            self.test = DTIDataset(self.filename, self.exp_name, split="test").shuffle()
+            self.test = DTIDataset(self.filename, self.exp_name, split="test")
             if self.config is None:
                 self.config = self.test.config
 

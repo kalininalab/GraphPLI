@@ -64,7 +64,9 @@ def split_random(inter: pd.DataFrame, train_frac: float = 0.7, val_frac: float =
         pd.DataFrame: DataFrame with a new 'split' column
     """
     test_frac = 1 - train_frac - val_frac
-    if val_frac != 0:
+    if test_frac == 1:
+        inter.loc[:, "split"] = "test"
+    elif val_frac != 0:
         train, valtest = train_test_split(inter, train_size=train_frac)
         val, test = train_test_split(valtest, train_size=val_frac / (val_frac + test_frac))
         train.loc[:, "split"] = "train"

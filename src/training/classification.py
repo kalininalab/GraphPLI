@@ -29,8 +29,9 @@ encoders = {
 class ClassificationModel(LightningModule):
     """Model for DTI prediction as a classification problem."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, test_names, **kwargs):
         super().__init__()
+        self.test_names = test_names
         self.save_hyperparameters()
         self.batch_size = kwargs["datamodule"]["batch_size"]
         self._determine_feat_method(
@@ -68,10 +69,15 @@ class ClassificationModel(LightningModule):
                 ]
             )
         return (
-            metrics.clone(prefix=prefix + "train_"),
-            metrics.clone(prefix=prefix + "val_"),
-            metrics.clone(prefix=prefix + "test_"),
+            metrics.clone(prefix=prefix + "train/"),
+            metrics.clone(prefix=prefix + "val/"),
+            [metrics.clone(prefix=prefix + f"{name}/") for name in self.test_names],
         )
+
+    def to(self, *args: Any, **kwargs: Any) -> "DeviceDtypeModuleMixin":
+        super().to(*args, **kwargs)
+        for metric in self.test_metrics:
+            metric.to(*args, **kwargs)
 
     def forward(self, prot: dict, drug: dict = None) -> dict:
         """Forward the data though the classification model"""
@@ -99,14 +105,14 @@ class ClassificationModel(LightningModule):
             joint_embed=joint_embedding,
         )
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-        prot = remove_arg_prefix("prot_", batch)
-        drug = remove_arg_prefix("drug_", batch)
-        fwd_dict = self.forward(prot, drug)
-        fwd_dict["pred"] = torch.sigmoid(fwd_dict["pred"])
-        if "label" in batch:
-            fwd_dict["label"] = batch["label"]
-        return fwd_dict
+    # def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+    #     prot = remove_arg_prefix("prot_", batch)
+    #     drug = remove_arg_prefix("drug_", batch)
+    #     fwd_dict = self.forward(prot, drug)
+    #     fwd_dict["pred"] = torch.sigmoid(fwd_dict["pred"])
+    #     if "label" in batch:
+    #         fwd_dict["label"] = batch["label"]
+    #     return fwd_dict
 
     def shared_step(self, data: TwoGraphData) -> dict:
         """Step that is the same for train, validation and test.
@@ -124,12 +130,6 @@ class ClassificationModel(LightningModule):
         bce_loss = F.binary_cross_entropy_with_logits(fwd_dict["pred"], labels.float())
 
         return dict(loss=bce_loss, preds=torch.sigmoid(fwd_dict["pred"].detach()), labels=labels.detach())
-
-    def validation_epoch_end(self, outputs: dict):
-        """WHat to do at the end of a validation epoch. Logs everthing."""
-        metrics = self.val_metrics.compute()
-        self.val_metrics.reset()
-        self.log_all(metrics)
 
     def _determine_feat_method(self, feat_method: str, drug_hidden_dim: int = None, prot_hidden_dim: int = None, **kwargs,):
         """Which method to use for concatenating drug and protein representations."""
@@ -167,25 +167,25 @@ class ClassificationModel(LightningModule):
         """Multiplication."""
         return drug_embed * prot_embed
 
-    def training_step(self, data: TwoGraphData, data_idx: int) -> dict:
+    def training_step(self, data: TwoGraphData, batch_idx: int = -1, dataloader_idx: int = 0) -> dict:
         """What to do during training step."""
         ss = self.shared_step(data)
         self.train_metrics.update(ss["preds"], ss["labels"])
-        self.log("train_loss", ss["loss"], batch_size=self.batch_size)
+        self.log("train/loss", ss["loss"], batch_size=self.batch_size)
         return ss
 
-    def validation_step(self, data: TwoGraphData, data_idx: int) -> dict:
+    def validation_step(self, data: TwoGraphData, batch_idx: int = -1, dataloader_idx: int = 0) -> dict:
         """What to do during validation step. Also logs the values for various callbacks."""
         ss = self.shared_step(data)
         self.val_metrics.update(ss["preds"], ss["labels"])
-        self.log("val_loss", ss["loss"], batch_size=self.batch_size)
+        self.log("val/loss", ss["loss"], batch_size=self.batch_size)
         return ss
 
-    def test_step(self, data: TwoGraphData, data_idx: int) -> dict:
+    def test_step(self, data: TwoGraphData, batch_idx: int = -1, dataloader_idx: int = 0) -> dict:
         """What to do during test step. Also logs the values for various callbacks."""
         ss = self.shared_step(data)
-        self.test_metrics.update(ss["preds"], ss["labels"])
-        self.log("test_loss", ss["loss"], batch_size=self.batch_size)
+        self.test_metrics[dataloader_idx].update(ss["preds"], ss["labels"])
+        self.log(f"{self.test_names[dataloader_idx]}/loss", ss["loss"], batch_size=self.batch_size)
         return ss
 
     def log_all(self, metrics: dict):
@@ -207,9 +207,10 @@ class ClassificationModel(LightningModule):
 
     def test_epoch_end(self, outputs: dict):
         """What to do at the end of a test epoch. Logs everything."""
-        metrics = self.test_metrics.compute()
-        self.test_metrics.reset()
-        self.log_all(metrics)
+        for dataloader_idx in range(len(self.test_metrics)):
+            metrics = self.test_metrics[dataloader_idx].compute()
+            self.test_metrics[dataloader_idx].reset()
+            self.log_all(metrics)
 
     def configure_optimizers(self):
         """Configure the optimizer and/or lr schedulers"""

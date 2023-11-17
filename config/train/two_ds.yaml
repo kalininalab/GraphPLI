@@ -1,8 +1,10 @@
 seed: 42
 name: dti_base
 datamodule:
-  filename: /scratch/SCRATCH_SAS/roman/rindti/datasets/unilectin3d++/results/prepare_all/rlnwgnrdanc_963ab669.pkl
-  exp_name: unilectin
+  filename: /scratch/SCRATCH_SAS/roman/GraphPLI/glycowork_4_350/results/prepare_all/rlnwgnrisanc_09bc7cf7.pkl
+  add_test:
+    unilectin: /scratch/SCRATCH_SAS/roman/GraphPLI/unilectin/results/prepare_all/rlnwgnranc_10a4630c.pkl
+  exp_name: two_ds
   batch_size: 64
   num_workers: 14
 trainer:
@@ -11,11 +13,11 @@ trainer:
   profiler: null
   gradient_clip_val: 100
 checkpoints:
-  monitor: val_BinaryAccuracy
+  monitor: val/loss
   save_top_k: 3
-  mode: max
+  mode: min
 model:
-  feat_method: element_l2
+  feat_method: concat
   monitor: val/loss
   drug:
     hidden_dim: 256
@@ -27,9 +29,6 @@ model:
       num_layers: 3
     pool:
       module: mean
-      num_heads: 4
-      hidden_dim: 128
-      ratio: 0.25
   prot:
     hidden_dim: 256
     method: graph
@@ -40,13 +39,10 @@ model:
       num_layers: 3
     pool:
       module: mean
-      num_heads: 4
-      hidden_dim: 128
-      ratio: 0.25
   mlp:
     dropout: 0.2
-    hidden_dim: 512
-    num_layers: 3
+    hidden_dim: 256
+    num_layers: 2
   optimizer:
     module: adam
     lr: 0.0001

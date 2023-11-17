@@ -19,7 +19,7 @@ checkpoints:
   mode: max
 model:
   feat_method: element_l2
-  monitor: val_loss
+  monitor: val/loss
   drug:
     hidden_dim: 256
     method: graph
@@ -57,7 +57,7 @@ model:
     momentum: 0.01
     lr_schedule:
       module: lwca
-      monitor: val_loss
+      monitor: val/loss
       cos_restart_dist: 50
       warmup_epochs: 25
       min_lr: 1e-7
