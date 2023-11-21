@@ -1,5 +1,5 @@
 # the two root directories to take the data from and to store the data in
-source: /scratch/SCRATCH_SAS/roman/GraphPLI/glycowork_4_350/resources
+source: /scratch/SCRATCH_SAS/roman/GraphPLI/glycowork_4_700_cut/resources
 prots:
   features:
     method: rinerator # rinerator, distance, esm
@@ -11,4 +11,4 @@ split_data:
   file: splits/R/inter.tsv
 parse_dataset:
   filtering: all
-  threshold: 1.075
+  task: reg
