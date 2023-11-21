@@ -1,8 +1,9 @@
-from typing import Any, Optional
+from typing import Any
 
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import LightningModule
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from torch import Tensor
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
@@ -43,9 +44,9 @@ class ClassificationModel(LightningModule):
         self.drug_encoder = encoders[kwargs["model"]["drug"]["method"]](**kwargs["model"]["drug"])
         self.mlp = MLP(input_dim=self.embed_dim, out_dim=1, **kwargs["model"]["mlp"], classify=True)
 
-        self.train_metrics, self.val_metrics, self.test_metrics = self._set_class_metrics()
+        self.train_metrics, self.val_metrics, self.test_metrics = self._set_metrics()
 
-    def _set_class_metrics(self, num_classes: int = 2, prefix: str = ""):
+    def _set_metrics(self, prefix: str = "", threshold: float = 0.5, num_classes: int = 2):
         """Initialize classification metrics for this sample"""
         if num_classes == 2:
             metrics = MetricCollection(
@@ -105,14 +106,8 @@ class ClassificationModel(LightningModule):
             joint_embed=joint_embedding,
         )
 
-    # def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
-    #     prot = remove_arg_prefix("prot_", batch)
-    #     drug = remove_arg_prefix("drug_", batch)
-    #     fwd_dict = self.forward(prot, drug)
-    #     fwd_dict["pred"] = torch.sigmoid(fwd_dict["pred"])
-    #     if "label" in batch:
-    #         fwd_dict["label"] = batch["label"]
-    #     return fwd_dict
+    def loss(self, pred, target):
+        return F.binary_cross_entropy_with_logits(pred, target)
 
     def shared_step(self, data: TwoGraphData) -> dict:
         """Step that is the same for train, validation and test.
@@ -127,9 +122,9 @@ class ClassificationModel(LightningModule):
 
         # weights = torch.where(labels == 0, self.pos_weight.to(labels.device),
         #                       self.neg_weight.to(labels.device)).float()
-        bce_loss = F.binary_cross_entropy_with_logits(fwd_dict["pred"], labels.float())
+        loss = self.loss(fwd_dict["pred"], labels.float())
 
-        return dict(loss=bce_loss, preds=torch.sigmoid(fwd_dict["pred"].detach()), labels=labels.detach())
+        return dict(loss=loss, preds=torch.sigmoid(fwd_dict["pred"].detach()), labels=labels.detach())
 
     def _determine_feat_method(self, feat_method: str, drug_hidden_dim: int = None, prot_hidden_dim: int = None, **kwargs,):
         """Which method to use for concatenating drug and protein representations."""
@@ -171,27 +166,27 @@ class ClassificationModel(LightningModule):
         """What to do during training step."""
         ss = self.shared_step(data)
         self.train_metrics.update(ss["preds"], ss["labels"])
-        self.log("train/loss", ss["loss"], batch_size=self.batch_size)
+        self.log("train/loss", ss["loss"], batch_size=self.batch_size, add_dataloader_idx=False)
         return ss
 
     def validation_step(self, data: TwoGraphData, batch_idx: int = -1, dataloader_idx: int = 0) -> dict:
         """What to do during validation step. Also logs the values for various callbacks."""
         ss = self.shared_step(data)
         self.val_metrics.update(ss["preds"], ss["labels"])
-        self.log("val/loss", ss["loss"], batch_size=self.batch_size)
+        self.log("val/loss", ss["loss"], batch_size=self.batch_size, add_dataloader_idx=False)
         return ss
 
     def test_step(self, data: TwoGraphData, batch_idx: int = -1, dataloader_idx: int = 0) -> dict:
         """What to do during test step. Also logs the values for various callbacks."""
         ss = self.shared_step(data)
         self.test_metrics[dataloader_idx].update(ss["preds"], ss["labels"])
-        self.log(f"{self.test_names[dataloader_idx]}/loss", ss["loss"], batch_size=self.batch_size)
+        self.log(f"{self.test_names[dataloader_idx]}/loss", ss["loss"], batch_size=self.batch_size, add_dataloader_idx=False)
         return ss
 
     def log_all(self, metrics: dict):
         """Log all metrics."""
         for k, v in metrics.items():
-            self.log(k, v)
+            self.log(k, v, add_dataloader_idx=False)
 
     def training_epoch_end(self, outputs: dict):
         """What to do at the end of a training epoch. Logs everything."""
@@ -211,6 +206,18 @@ class ClassificationModel(LightningModule):
             metrics = self.test_metrics[dataloader_idx].compute()
             self.test_metrics[dataloader_idx].reset()
             self.log_all(metrics)
+
+    def train_dataloader(self) -> TRAIN_DATALOADERS:
+        raise NotImplementedError()
+
+    def test_dataloader(self) -> EVAL_DATALOADERS:
+        raise NotImplementedError()
+
+    def val_dataloader(self) -> EVAL_DATALOADERS:
+        raise NotImplementedError()
+
+    def predict_dataloader(self) -> EVAL_DATALOADERS:
+        raise NotImplementedError()
 
     def configure_optimizers(self):
         """Configure the optimizer and/or lr schedulers"""

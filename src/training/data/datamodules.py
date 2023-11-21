@@ -44,7 +44,6 @@ class DTIDataModule(LightningDataModule):
 
     def update_config(self, config: dict) -> None:
         """Update the main config with the config of the dataset."""
-        print(self.config)
         for i in ["prot", "drug"]:
             if i in self.config["snakemake"]["data"] and i in config["model"]:
                 config["model"][i]["data"] = self.config["snakemake"]["data"][i]

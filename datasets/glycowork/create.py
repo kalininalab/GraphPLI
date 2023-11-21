@@ -21,7 +21,7 @@ def extract_chain(pdb_name, pdb_file, search_chain, output_file):
             return
 
 
-def create(source_path, target_path, min_id=0.75, min_cov=0.6, max_mono=4, max_aas=350):
+def create(source_path, target_path, min_id=0.75, min_cov=0.6, max_mono=4, max_aas=700):
     os.makedirs(target_path / "tables", exist_ok=True)
     os.makedirs(target_path / "structures", exist_ok=True)
 
@@ -50,7 +50,7 @@ def create(source_path, target_path, min_id=0.75, min_cov=0.6, max_mono=4, max_a
                     if glycan.get_tree().number_of_nodes() > max_mono:
                         continue
                     smiles = glycan.get_smiles()
-                    if rdkit.Chem.MolFromSmiles(smiles):
+                    if rdkit.Chem.MolFromSmiles(smiles) and all(atom not in smiles for atom in "SPF"):
                         name = f"Gly{(i + 1):05d}"
                         glycans.add(name)
                         print(name, smiles, sep="\t", file=lig)
@@ -83,7 +83,7 @@ def create(source_path, target_path, min_id=0.75, min_cov=0.6, max_mono=4, max_a
                     counter += 1
                     value = float(value)
                     glycan = f"Gly{(i + 1):05d}"
-                    if glycan in glycans:
+                    if glycan in glycans and not (-0.34 < value < -0.07):
                         print(glycan, lectin, value, sep="\t", file=inter)
     inter.close()
     lig.close()

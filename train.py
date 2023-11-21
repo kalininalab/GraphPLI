@@ -10,10 +10,17 @@ from torch_geometric.loader import DataLoader
 from src.training.data.datamodules import DTIDataModule
 from src.training.classification import ClassificationModel
 from src.training.data.datasets import DTIDataset
+from src.training.regression import RegressionModel
 from src.training.utils.cli import read_config, get_git_hash
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 os.environ["WANDB_CACHE_DIR"] = "/scratch/SCRATCH_SAS/roman/.cache/wandb"
+
+
+models = {
+    "class": ClassificationModel,
+    "reg": RegressionModel,
+}
 
 
 def train(**kwargs):
@@ -55,7 +62,7 @@ def train(**kwargs):
         **kwargs["trainer"],
     )
 
-    model = ClassificationModel(test_names=test_names, **kwargs)
+    model = models[datamodule.config["snakemake"]["parse_dataset"]["task"]](test_names=test_names, **kwargs)
 
     trainer.fit(model, datamodule)
     trainer.test(ckpt_path="best", dataloaders=test_loaders)

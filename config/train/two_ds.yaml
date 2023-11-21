@@ -1,7 +1,7 @@
 seed: 42
-name: dti_base
+name: dti_base_cut
 datamodule:
-  filename: /scratch/SCRATCH_SAS/roman/GraphPLI/glycowork_4_350/results/prepare_all/rlnwgnrisanc_09bc7cf7.pkl
+  filename: /scratch/SCRATCH_SAS/roman/GraphPLI/glycowork_4_700_cut/results/prepare_all/rlnwgnrisanc_d6ebdfcd.pkl
   add_test:
     unilectin: /scratch/SCRATCH_SAS/roman/GraphPLI/unilectin/results/prepare_all/rlnwgnranc_10a4630c.pkl
   exp_name: two_ds
