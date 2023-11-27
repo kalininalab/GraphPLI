@@ -95,6 +95,7 @@ class DTIDataset(InMemoryDataset):
         """If the dataset was not seen before, process everything."""
         with open(self.filename, "rb") as file:
             all_data = pd.read_pickle(file)
+            # all_data = pickle.load(file)
             # print(len(all_data["data"]))
             self.config = {"snakemake": all_data["config"]}
             # print([x["split"] for x in all_data["data"]])

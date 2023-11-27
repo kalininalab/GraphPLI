@@ -8,7 +8,7 @@ datamodule:
   batch_size: 64
   num_workers: 14
 trainer:
-  gpus: 1
+  devices: -1
   max_epochs: 150
   profiler: null
   gradient_clip_val: 100

@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torchmetrics import MetricCollection, MeanAbsoluteError, MeanSquaredError, ExplainedVariance, Accuracy, AUROC, \
     MatthewsCorrCoef
@@ -19,6 +21,12 @@ class RegressionModel(ClassificationModel):
             (self.train_metrics, self.val_metrics, self.test_metrics), \
                 (self.train_class_metrics, self.val_class_metrics, self.test_class_metrics) = \
                 self._set_metrics(threshold=self.threshold)
+
+    def to(self, *args: Any, **kwargs: Any) -> "DeviceDtypeModuleMixin":
+        super().to(*args, **kwargs)
+        if self.threshold is not None:
+            for metric in self.test_class_metrics:
+                metric.to(*args, **kwargs)
 
     def _set_metrics(self, prefix: str = "", threshold: float = None, num_classes: int = 1):
         reg_metrics = MetricCollection([MeanAbsoluteError(), MeanSquaredError(), ExplainedVariance()])
@@ -52,30 +60,30 @@ class RegressionModel(ClassificationModel):
         return ss
 
     def test_step(self, data: TwoGraphData, batch_idx: int = -1, dataloader_idx: int = 0) -> dict:
-        ss = super().test_step(data, batch_idx)
+        ss = super().test_step(data, batch_idx, dataloader_idx)
         if self.threshold is not None:
             target = torch.where(ss["labels"] > self.threshold, 1, 0)
             self.test_class_metrics[dataloader_idx].update(ss["preds"], target)
         return ss
 
-    def training_epoch_end(self, outputs: dict):
-        super().training_epoch_end(outputs)
+    def on_training_epoch_end(self):
+        super().on_training_epoch_end()
         if self.threshold is not None:
             self.log_all(self.train_class_metrics.compute())
             self.train_class_metrics.reset()
 
-    def validation_epoch_end(self, outputs: dict):
-        super().validation_epoch_end(outputs)
+    def on_validation_epoch_end(self):
+        super().on_validation_epoch_end()
         if self.threshold is not None:
             self.log_all(self.val_class_metrics.compute())
             self.val_class_metrics.reset()
 
-    def test_epoch_end(self, outputs: dict):
-        super().test_epoch_end(outputs)
+    def on_test_epoch_end(self):
+        super().on_test_epoch_end()
         if self.threshold is not None:
             for i, name in enumerate(self.test_names):
                 self.log_all(self.test_class_metrics[i].compute())
-                self.test_class_metrics.reset()
+                self.test_class_metrics[i].reset()
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         raise NotImplementedError()

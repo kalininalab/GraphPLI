@@ -1,9 +1,9 @@
-from typing import Any
+from typing import Any, Optional
 
 import torch
 import torch.nn.functional as F
 from pytorch_lightning import LightningModule
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS, LRSchedulerTypeUnion
 from torch import Tensor
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
@@ -188,24 +188,27 @@ class ClassificationModel(LightningModule):
         for k, v in metrics.items():
             self.log(k, v, add_dataloader_idx=False)
 
-    def training_epoch_end(self, outputs: dict):
+    def on_training_epoch_end(self):
         """What to do at the end of a training epoch. Logs everything."""
         metrics = self.train_metrics.compute()
         self.train_metrics.reset()
         self.log_all(metrics)
 
-    def validation_epoch_end(self, outputs: dict):
+    def on_validation_epoch_end(self):
         """What to do at the end of a validation epoch. Logs everything."""
         metrics = self.val_metrics.compute()
         self.val_metrics.reset()
         self.log_all(metrics)
 
-    def test_epoch_end(self, outputs: dict):
+    def on_test_epoch_end(self):
         """What to do at the end of a test epoch. Logs everything."""
         for dataloader_idx in range(len(self.test_metrics)):
             metrics = self.test_metrics[dataloader_idx].compute()
             self.test_metrics[dataloader_idx].reset()
             self.log_all(metrics)
+
+    def lr_scheduler_step(self, scheduler: LRSchedulerTypeUnion, metric: Optional[Any]) -> None:
+        scheduler.step(self.current_epoch)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         raise NotImplementedError()
@@ -237,7 +240,10 @@ class ClassificationModel(LightningModule):
 
         optimizer = Adam(params=self.parameters(), lr=opt_params["lr"], betas=(0.9, 0.95))
 
-        return [optimizer], [self.parse_lr_scheduler(optimizer, opt_params, opt_params["lr_schedule"])]
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": self.parse_lr_scheduler(optimizer, opt_params, opt_params["lr_schedule"]),
+        }
 
     def parse_lr_scheduler(self, optimizer, opt_params, lr_params):
         """Parse learning rate scheduling based on config args"""
